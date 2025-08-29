@@ -1,0 +1,102 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⭐</text></svg>" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emoji Clicker Saga</title>
+
+    <!-- SEO & Social Sharing Meta Tags -->
+    <meta name="description" content="A fun and engaging incremental clicking game. Start by clicking an emoji, earn points, buy generators to automate your income, purchase powerful upgrades, and aim for rebirth to become the ultimate emoji master." />
+    <meta name="keywords" content="clicker game, incremental game, emoji, idle game, saga, clicker, idle, game" />
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Emoji Clicker Saga" />
+    <meta property="og:description" content="A fun and engaging incremental clicking game where you build an emoji empire." />
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary" />
+    <meta property="twitter:title" content="Emoji Clicker Saga" />
+    <meta property="twitter:description" content="A fun and engaging incremental clicking game where you build an emoji empire." />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.1.1",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.1.1/",
+    "react/": "https://aistudiocdn.com/react@^19.1.1/"
+  }
+}
+</script>
+<style>
+      /* Prevent text selection and set default cursor */
+      body, html, #root {
+        -webkit-user-select: none; /* Safari */
+        -moz-user-select: none; /* Firefox */
+        -ms-user-select: none; /* IE10+/Edge */
+        user-select: none; /* Standard */
+        cursor: default;
+      }
+      /* Re-enable text selection for inputs */
+      input[type="text"], textarea {
+        -webkit-user-select: auto;
+        -moz-user-select: auto;
+        -ms-user-select: auto;
+        user-select: auto;
+        cursor: text;
+      }
+      /* Custom scrollbar hiding utility for inner elements */
+      .hide-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .hide-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+       /* Setup for full-height layout and hiding the main body scrollbar */
+      html, body {
+        height: 100%;
+        /* The main scrollbar is prevented by the App's root div having h-screen and overflow-hidden. */
+        /* These rules are for hiding the body scrollbar if it ever appears. */
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+      body::-webkit-scrollbar {
+        display: none; /* Safari and Chrome */
+      }
+      
+      /* Golden Emoji Shimmer */
+      @keyframes shimmer {
+          0%, 100% {
+              transform: scale(1);
+              filter: brightness(1) drop-shadow(0 0 5px #fef08a);
+          }
+          50% {
+              transform: scale(1.1);
+              filter: brightness(1.5) drop-shadow(0 0 15px #fef08a);
+          }
+      }
+      .animate-shimmer {
+          animation: shimmer 2s ease-in-out infinite;
+      }
+
+      /* Generator Ping */
+      @keyframes ping-fade {
+          0% { transform: scale(0.9); opacity: 0; }
+          50% { opacity: 1; }
+          100% { transform: scale(1.5); opacity: 0; }
+      }
+      .animate-ping-fade {
+          animation: ping-fade 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+      }
+    </style>
+</head>
+  <body class="bg-gray-900">
+    <div id="root"></div>
+    <script type="text/babel" data-type="module" src="./index.tsx"></script>
+  </body>
+</html>
