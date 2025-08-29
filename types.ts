@@ -1,4 +1,6 @@
 
+import { TranslationKey } from './i18n/locales';
+
 export interface Generator {
   id: string;
   name: string;
@@ -50,4 +52,19 @@ export interface LeaderboardEntry {
 export interface Boost {
   multiplier: number;
   timeLeft: number;
+}
+
+// Music Types
+export type MusicTrackId = 'stardew_craft';
+
+export interface MusicNote {
+    freq: number | null;
+    duration: string;
+}
+
+export interface MusicTrack {
+    beatDuration: number;
+    instrument: OscillatorType;
+    volume: number;
+    theme: MusicNote[];
 }

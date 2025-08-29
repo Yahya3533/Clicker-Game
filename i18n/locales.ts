@@ -41,9 +41,11 @@ export const translations = {
     unlock_confirm: "Are you sure? This will unlock almost everything in the game and cannot be undone.",
     unlock_confirm_short: "Are you sure? Click again.",
     hard_reset: "Hard Reset Game",
-    hard_reset_desc: "Permanently delete all of your progress. This cannot be undone.",
-    hard_reset_confirm: "Are you sure you want to delete all data? This is irreversible.",
-    hard_reset_confirm_short: "Confirm Deletion",
+    hard_reset_desc: "Permanently deletes ALL player data on this device, including all accounts and the leaderboard. This action cannot be undone.",
+    hard_reset_confirm: "Are you sure you want to reset all progress? Your name will be kept, but everything else will be gone. This is irreversible.",
+    hard_reset_confirm_short: "Confirm Reset",
+    switch_account: "Switch Account",
+    switch_account_desc: "Log out and return to the player name screen.",
     // Leaderboard
     leaderboard: "Leaderboard",
     rank: "Rank",
@@ -157,6 +159,13 @@ export const translations = {
     name_placeholder: "Clicker Hero",
     start_playing: "Start Playing",
     random_name_tooltip: "Generate random name",
+    // Save Indicator
+    saving: "Saving...",
+    saved: "Saved!",
+    // Offline Progress
+    offline_progress_title: "Welcome Back!",
+    offline_earnings_desc: "While you were away for {duration}, your empire earned:",
+    collect: "Collect",
   },
   tr: {
     points: "Puan",
@@ -200,9 +209,11 @@ export const translations = {
     unlock_confirm: "Emin misin? Bu, oyundaki neredeyse her şeyin kilidini açacak ve geri alınamaz.",
     unlock_confirm_short: "Emin misin? Onaylamak için tekrar tıkla.",
     hard_reset: "Oyunu Kökten Sıfırla",
-    hard_reset_desc: "Tüm ilerlemenizi kalıcı olarak siler. Bu işlem geri alınamaz.",
-    hard_reset_confirm: "Tüm verileri silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.",
-    hard_reset_confirm_short: "Silmeyi Onayla",
+    hard_reset_desc: "Bu cihazdaki TÜM oyuncu verilerini, tüm hesaplar ve sıralama dahil olmak üzere kalıcı olarak siler. Bu işlem geri alınamaz.",
+    hard_reset_confirm: "Tüm ilerlemeyi sıfırlamak istediğinizden emin misiniz? Adınız saklanacak, ancak diğer her şey silinecek. Bu işlem geri alınamaz.",
+    hard_reset_confirm_short: "Sıfırlamayı Onayla",
+    switch_account: "Hesap Değiştir",
+    switch_account_desc: "Çıkış yap ve oyuncu adı ekranına geri dön.",
      // Leaderboard
     leaderboard: "Sıralama",
     rank: "Sıra",
@@ -316,6 +327,13 @@ export const translations = {
     name_placeholder: "Tıklama Kahramanı",
     start_playing: "Oynamaya Başla",
     random_name_tooltip: "Rastgele isim oluştur",
+    // Save Indicator
+    saving: "Kaydediliyor...",
+    saved: "Kaydedildi!",
+    // Offline Progress
+    offline_progress_title: "Tekrar Hoş Geldin!",
+    offline_earnings_desc: "Sen yokken ({duration}), imparatorluğun şunları kazandı:",
+    collect: "Topla",
   },
 };
 

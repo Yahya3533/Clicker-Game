@@ -2,21 +2,26 @@ import { memo } from 'react';
 import { formatNumber } from '../utils/format';
 import { useSettings } from '../hooks/useSettings';
 import type { Boost } from '../types';
+import SaveIndicator from './SaveIndicator';
 
 interface HeaderProps {
   points: number;
   pps: number;
   gems: number;
   boost: Boost | null;
+  isSaving: boolean;
   onSettingsClick: () => void;
 }
 
-const Header = ({ points, pps, gems, boost, onSettingsClick }: HeaderProps) => {
+const Header = ({ points, pps, gems, boost, isSaving, onSettingsClick }: HeaderProps) => {
   const { t } = useSettings();
 
   return (
     <header className="bg-gray-800/50 backdrop-blur-sm shadow-lg sticky top-0 z-10">
-      <div className="container mx-auto flex justify-around items-center text-white text-center p-4">
+      <div className="container mx-auto flex justify-around items-center text-white text-center p-4 relative">
+        <div className="absolute left-4 top-1/2 -translate-y-1/2">
+            <SaveIndicator isSaving={isSaving} />
+        </div>
         <div className="flex-1">
           <h2 className="text-sm md:text-lg font-bold text-yellow-300">{formatNumber(points)} ⭐</h2>
           <p className="text-xs md:text-sm text-gray-400">{t('points')}</p>

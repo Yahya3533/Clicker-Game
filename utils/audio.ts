@@ -1,3 +1,6 @@
+
+import type { MusicTrackId, MusicTrack } from '../types';
+
 // A very simple sound effect generator using the Web Audio API.
 // This avoids needing to host audio files.
 let audioCtx: AudioContext | null = null;
@@ -92,13 +95,33 @@ export const playGoldenEmojiSound = () => {
 };
 
 // --- Background Music Logic ---
-let musicArpeggioInterval: number | null = null;
-let musicBassInterval: number | null = null;
-let musicKickInterval: number | null = null;
+
+export const MUSIC_TRACKS: Record<MusicTrackId, MusicTrack> = {
+    stardew_craft: {
+        beatDuration: 350,
+        instrument: 'sine', // Soft sine for the Minecraft feel
+        volume: 0.5,
+        theme: [
+            { freq: 493.88, duration: 'q' }, { freq: 659.25, duration: 'q' }, { freq: 830.61, duration: 'e' }, { freq: 987.77, duration: 'e' },
+            { freq: 880.00, duration: 'q' }, { freq: 830.61, duration: 'q' }, { freq: 659.25, duration: 'h' },
+            { freq: 493.88, duration: 'q' }, { freq: 659.25, duration: 'q' }, { freq: 830.61, duration: 'e' }, { freq: 987.77, duration: 'e' },
+            { freq: 880.00, duration: 'q' }, { freq: 830.61, duration: 'q' }, { freq: 659.25, duration: 'h' },
+            { freq: 554.37, duration: 'q' }, { freq: 493.88, duration: 'q' }, { freq: 440.00, duration: 'q' }, { freq: 415.30, duration: 'q' },
+            { freq: 369.99, duration: 'h' }, { freq: 415.30, duration: 'e' }, { freq: 440.00, duration: 'e' },
+            { freq: 493.88, duration: 'q' }, { freq: 440.00, duration: 'q' }, { freq: 415.30, duration: 'q' }, { freq: 369.99, duration: 'q' },
+            { freq: 329.63, duration: 'w' },
+            { freq: null, duration: 'h' }, // Rest
+        ],
+    },
+}
+
+let musicSchedulerTimeout: number | null = null;
+let musicNoteIndex = 0;
 let masterMusicGain: GainNode | null = null;
 let isMusicPlaying = false;
+let currentTrack: MusicTrack | null = null;
 
-const MASTER_MUSIC_BASE_GAIN = 0.06;
+const MASTER_MUSIC_BASE_GAIN = 0.16;
 
 export const setMusicVolume = (vol: number) => {
     globalMusicVolume = vol;
@@ -109,7 +132,7 @@ export const setMusicVolume = (vol: number) => {
     }
 };
 
-const playNote = (frequency: number, duration: number, type: OscillatorType = 'triangle', volume = 1.0) => {
+const playNote = (frequency: number, duration: number, type: OscillatorType, volume: number) => {
     const ctx = getAudioContext();
     if (!ctx || !masterMusicGain) return;
 
@@ -122,122 +145,74 @@ const playNote = (frequency: number, duration: number, type: OscillatorType = 't
     oscillator.type = type;
     oscillator.frequency.setValueAtTime(frequency, ctx.currentTime);
 
-    gainNode.gain.setValueAtTime(volume, ctx.currentTime);
+    // Quick attack to prevent clicks
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(volume, ctx.currentTime + 0.01);
     gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration / 1000);
 
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + duration / 1000);
 };
 
-const playKick = () => {
+const scheduleNextNote = () => {
     const ctx = getAudioContext();
-    if (!ctx || !masterMusicGain) return;
+    if (!isMusicPlaying || !ctx || !currentTrack) return;
 
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    if (musicNoteIndex >= currentTrack.theme.length) {
+        // Loop the current track
+        musicNoteIndex = 0;
+    }
 
-    osc.connect(gain);
-    gain.connect(masterMusicGain);
+    const noteDurations: { [key: string]: number } = {
+        'w': 4 * currentTrack.beatDuration,
+        'h': 2 * currentTrack.beatDuration,
+        'q': 1 * currentTrack.beatDuration,
+        'e': 0.5 * currentTrack.beatDuration,
+    };
 
-    osc.type = 'sine';
+    const note = currentTrack.theme[musicNoteIndex];
+    const durationMs = noteDurations[note.duration];
     
-    osc.frequency.setValueAtTime(120, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
+    if (note.freq) {
+        playNote(note.freq, durationMs * 0.95, currentTrack.instrument, currentTrack.volume);
+    }
 
-    gain.gain.setValueAtTime(0.25, ctx.currentTime); // Subtle volume
-    // Fix: Corrected typo in method name from 'exponentialRapToValueAtTime' to 'exponentialRampToValueAtTime'.
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.1);
-
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.1);
+    musicNoteIndex++;
+    
+    musicSchedulerTimeout = window.setTimeout(scheduleNextNote, durationMs);
 };
-
 
 export const startMusic = () => {
     const ctx = getAudioContext();
-    if (!ctx || isMusicPlaying) return;
-
-    // Fix: Corrected typo from musicArpegeioInterval to musicArpeggioInterval
-    if (musicArpeggioInterval) clearInterval(musicArpeggioInterval);
-    if (musicBassInterval) clearInterval(musicBassInterval);
-    if (musicKickInterval) clearInterval(musicKickInterval);
+    if (!ctx) return;
+    
+    if (musicSchedulerTimeout) clearTimeout(musicSchedulerTimeout);
     
     isMusicPlaying = true;
+    currentTrack = MUSIC_TRACKS['stardew_craft'];
+    musicNoteIndex = 0;
+    
+    if (!masterMusicGain) {
+        masterMusicGain = ctx.createGain();
+        masterMusicGain.connect(ctx.destination);
+        masterMusicGain.gain.setValueAtTime(0, ctx.currentTime);
+        masterMusicGain.gain.linearRampToValueAtTime(MASTER_MUSIC_BASE_GAIN * globalMusicVolume, ctx.currentTime + 3);
+    } else if (ctx.state === 'running' && masterMusicGain.gain.value === 0) {
+         // Faded out, fade back in
+         masterMusicGain.gain.linearRampToValueAtTime(MASTER_MUSIC_BASE_GAIN * globalMusicVolume, ctx.currentTime + 3);
+    }
 
-    masterMusicGain = ctx.createGain();
-    masterMusicGain.connect(ctx.destination);
-    masterMusicGain.gain.setValueAtTime(0, ctx.currentTime);
-    masterMusicGain.gain.linearRampToValueAtTime(MASTER_MUSIC_BASE_GAIN * globalMusicVolume, ctx.currentTime + 3);
-
-    const noteInterval = 450;
-
-    // Expanded 8-bar progression: I-V-vi-iii-IV-I-IV-V (C-G-Am-Em-F-C-F-G)
-    const melody = [
-        // C Major
-        261.63, 329.63, 392.00, 329.63,
-        // G Major
-        196.00, 246.94, 293.66, 246.94,
-        // A Minor
-        220.00, 261.63, 329.63, 261.63,
-        // E Minor
-        164.81, 196.00, 246.94, 196.00,
-        // F Major
-        174.61, 220.00, 261.63, 220.00,
-        // C Major
-        261.63, 329.63, 392.00, 523.25, // Variation
-        // F Major
-        174.61, 220.00, 261.63, 349.23, // Variation
-        // G Major
-        196.00, 246.94, 293.66, 392.00, // Variation
-    ];
-    let arpeggioIndex = 0;
-
-    musicArpeggioInterval = window.setInterval(() => {
-        const freq = melody[arpeggioIndex % melody.length];
-        playNote(freq, noteInterval * 1.5, 'triangle', 0.8);
-        arpeggioIndex++;
-    }, noteInterval);
-
-    const bassline = [
-        130.81, // C3
-        98.00,  // G2
-        110.00, // A2
-        164.81, // E3
-        87.31,  // F2
-        130.81, // C3
-        87.31,  // F2
-        98.00,  // G2
-    ];
-    let bassIndex = 0;
-    const bassInterval = noteInterval * 4;
-
-    musicBassInterval = window.setInterval(() => {
-        const freq = bassline[bassIndex % bassline.length];
-        playNote(freq, bassInterval * 0.95, 'sine', 1.1);
-        bassIndex++;
-    }, bassInterval);
-
-    musicKickInterval = window.setInterval(() => {
-        playKick();
-    }, noteInterval * 2); // Kick on every half note
+    scheduleNextNote();
 };
 
 export const stopMusic = () => {
     if (!isMusicPlaying) return;
     
     isMusicPlaying = false;
-
-    if (musicArpeggioInterval) {
-        clearInterval(musicArpeggioInterval);
-        musicArpeggioInterval = null;
-    }
-    if (musicBassInterval) {
-        clearInterval(musicBassInterval);
-        musicBassInterval = null;
-    }
-    if (musicKickInterval) {
-        clearInterval(musicKickInterval);
-        musicKickInterval = null;
+    
+    if (musicSchedulerTimeout) {
+        clearTimeout(musicSchedulerTimeout);
+        musicSchedulerTimeout = null;
     }
 
     if (masterMusicGain) {
@@ -246,13 +221,7 @@ export const stopMusic = () => {
             masterMusicGain.gain.cancelScheduledValues(ctx.currentTime);
             masterMusicGain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2.0);
 
-            setTimeout(() => {
-                masterMusicGain?.disconnect();
-                masterMusicGain = null;
-            }, 2100);
-        } else {
-            masterMusicGain.disconnect();
-            masterMusicGain = null;
+            // Do not disconnect, just set volume to 0. This way we can fade in again.
         }
     }
 };

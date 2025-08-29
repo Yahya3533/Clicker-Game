@@ -1,6 +1,7 @@
+
 import { useState, useRef, useEffect } from 'react';
 import { useSettings } from '../hooks/useSettings';
-import type { Language } from '../i18n/locales';
+import type { Language, TranslationKey } from '../i18n/locales';
 import { playClickSound } from '../utils/audio';
 
 interface SettingsModalProps {
@@ -8,10 +9,11 @@ interface SettingsModalProps {
   onClose: () => void;
   onCheat: () => void;
   onHardReset: () => void;
+  onSwitchAccount: () => void;
   playerName: string | null;
 }
 
-const SettingsModal = ({ isOpen, onClose, onCheat, onHardReset, playerName }: SettingsModalProps) => {
+const SettingsModal = ({ isOpen, onClose, onCheat, onHardReset, onSwitchAccount, playerName }: SettingsModalProps) => {
   const { 
     isSoundOn, setIsSoundOn, 
     isMusicOn, setIsMusicOn, 
@@ -188,10 +190,23 @@ const SettingsModal = ({ isOpen, onClose, onCheat, onHardReset, playerName }: Se
                 </button>
             </div>
         </div>
+        
+        {/* Account Management */}
+        <div className="mt-6 pt-4 border-t border-gray-600">
+            <div className="text-center">
+                <button
+                    onClick={onSwitchAccount}
+                    className="w-full py-2 px-4 rounded-md font-bold text-white bg-blue-600 hover:bg-blue-500 transition-colors"
+                >
+                    {t('switch_account')}
+                </button>
+                <p className="text-xs text-gray-500 mt-1">{t('switch_account_desc')}</p>
+            </div>
+        </div>
 
         {/* Dev / Reset Buttons */}
         {playerName === 'Yhy3533' && (
-            <div className="mt-6 pt-4 border-t border-gray-600 space-y-3">
+            <div className="mt-3 pt-4 border-t border-gray-600 space-y-3">
                 <button
                     onClick={handleCheatClick}
                     className={`w-full py-2 px-4 rounded-md font-bold text-white transition-colors ${

@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { translations, Language, TranslationKey } from '../i18n/locales';
 import { 
@@ -18,7 +19,6 @@ interface SettingsContextProps {
   setSfxVolume: (vol: number) => void;
   musicVolume: number;
   setMusicVolume: (vol: number) => void;
-  // Fix: Update `t` function signature to accept variables for interpolation.
   t: (key: TranslationKey, vars?: { [key: string]: string | number }) => string;
 }
 
@@ -68,7 +68,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     } else {
         stopMusic();
     }
-    return () => stopMusic();
   }, [isMusicOn]);
 
   useEffect(() => {
@@ -84,7 +83,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     localStorage.setItem('emojiClickerMusicVolume', JSON.stringify(musicVolume));
     setAudioMusicVolume(musicVolume);
   }, [musicVolume]);
-
+  
   const setIsSoundOn = (isOn: boolean) => {
     setIsSoundOnState(isOn);
   };
@@ -105,7 +104,6 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     setMusicVolumeState(vol);
   };
   
-  // Fix: Update `t` function to handle placeholder replacement for dynamic strings.
   const t = useCallback((key: TranslationKey, vars?: { [key: string]: string | number }): string => {
     let translation = translations[language][key] || translations['en'][key];
     if (!translation) {
@@ -123,7 +121,14 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   }, [language]);
 
   return (
-    <SettingsContext.Provider value={{ isSoundOn, setIsSoundOn, isMusicOn, setIsMusicOn, language, setLanguage, sfxVolume, setSfxVolume, musicVolume, setMusicVolume, t }}>
+    <SettingsContext.Provider value={{ 
+        isSoundOn, setIsSoundOn, 
+        isMusicOn, setIsMusicOn, 
+        language, setLanguage, 
+        sfxVolume, setSfxVolume, 
+        musicVolume, setMusicVolume,
+        t 
+    }}>
       {children}
     </SettingsContext.Provider>
   );

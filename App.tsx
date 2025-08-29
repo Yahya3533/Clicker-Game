@@ -17,14 +17,34 @@ import GoldenEmoji from './components/GoldenEmoji';
 import NameInputModal from './components/NameInputModal';
 import { useSettings } from './hooks/useSettings';
 import { playClickSound, playBuySound, playRebirthSound, playGoldenEmojiSound } from './utils/audio';
-import { generateFakeLeaderboardData } from './utils/leaderboard';
+import { generateLeaderboardData } from './utils/leaderboard';
 
 const GOLDEN_EMOJI_MIN_SPAWN_TIME = 30000; // 30 seconds
 const GOLDEN_EMOJI_MAX_SPAWN_TIME = 60000; // 60 seconds
 const GOLDEN_EMOJI_LIFETIME = 6000; // 6 seconds
-const AUTO_SAVE_INTERVAL = 60000; // 1 minute
+const AUTO_SAVE_INTERVAL = 15000; // 15 seconds
+const LEADERBOARD_STORAGE_KEY = 'emojiClickerLeaderboardData';
 
 type ActiveTab = 'main' | 'rebirth' | 'leaderboard' | 'achievements';
+
+type LeaderboardData = Record<string, {
+    points: number;
+    totalClicks: number;
+    gems: number;
+}>;
+
+const getInitialState = (): GameState => ({
+    points: 0,
+    gems: 0,
+    totalClicks: 0,
+    generators: INITIAL_GENERATORS.map(g => ({ ...g, level: 0 })),
+    upgrades: INITIAL_UPGRADES.map(u => ({ ...u, purchased: false })),
+    clickLevel: 1,
+    clickProgress: 0,
+    unlockedAchievements: {},
+    prestigeLevel: 0,
+});
+
 
 const App = () => {
     const { isSoundOn, t } = useSettings();
@@ -35,87 +55,131 @@ const App = () => {
     const [isRebirthing, setIsRebirthing] = useState(false);
     const [achievementToastQueue, setAchievementToastQueue] = useState<Achievement[]>([]);
     
-    // New Feature State
+    // Feature State
     const [goldenEmoji, setGoldenEmoji] = useState<{ id: number; x: number; y: number } | null>(null);
     const [boost, setBoost] = useState<Boost | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [isSaving, setIsSaving] = useState(false);
+    const saveTimeoutRef = useRef<number | null>(null);
 
     const [playerName, setPlayerName] = useState<string | null>(() => localStorage.getItem('emojiClickerPlayerName'));
 
-    const [gameState, setGameState] = useState<GameState>(() => {
-        try {
-            const savedGame = localStorage.getItem('emojiClickerSaga');
-            if (savedGame) {
-                const parsed = JSON.parse(savedGame);
-                const upgrades = INITIAL_UPGRADES.map(u => {
-                    const savedUpgrade = parsed.upgrades?.find((su: any) => su.id === u.id);
-                    return savedUpgrade ? { ...u, purchased: savedUpgrade.purchased } : u;
-                });
-                const generators = INITIAL_GENERATORS.map(g => {
-                    const savedGenerator = parsed.generators?.find((sg: any) => sg.id === g.id);
-                    return savedGenerator ? { ...g, level: savedGenerator.level } : g;
-                });
-
-                return {
-                    points: parsed.points || 0,
-                    gems: parsed.gems || 0,
-                    totalClicks: parsed.totalClicks || 0,
-                    generators: generators,
-                    upgrades: upgrades,
-                    clickLevel: parsed.clickLevel || 1,
-                    clickProgress: parsed.clickProgress || 0,
-                    unlockedAchievements: parsed.unlockedAchievements || {},
-                    prestigeLevel: parsed.prestigeLevel || 0,
-                };
-            }
-        } catch (error) {
-            console.error("Failed to load saved game, starting fresh:", error);
-            localStorage.removeItem('emojiClickerSaga'); // Clear corrupted data
-        }
-        
-        return {
-            points: 0,
-            gems: 0,
-            totalClicks: 0,
-            generators: INITIAL_GENERATORS,
-            upgrades: INITIAL_UPGRADES,
-            clickLevel: 1,
-            clickProgress: 0,
-            unlockedAchievements: {},
-            prestigeLevel: 0,
-        };
-    });
+    const [gameState, setGameState] = useState<GameState>(getInitialState);
     
     const [leaderboardData, setLeaderboardData] = useState<LeaderboardEntry[]>([]);
     const [leaderboardCategory, setLeaderboardCategory] = useState<LeaderboardCategory>('points');
-    const leaderboardUpdateTimeoutRef = useRef<number | null>(null);
     const gameStateRef = useRef(gameState);
 
     useEffect(() => {
         gameStateRef.current = gameState;
     }, [gameState]);
 
+    // Load game state when player name is known
+    useEffect(() => {
+        if (playerName) {
+            setIsLoading(true);
+            try {
+                const savedGame = localStorage.getItem(`emojiClickerSaga_${playerName}`);
+                if (savedGame) {
+                    const parsed = JSON.parse(savedGame);
+                    const upgrades = INITIAL_UPGRADES.map(u => {
+                        const savedUpgrade = parsed.upgrades?.find((su: any) => su.id === u.id);
+                        return savedUpgrade ? { ...u, purchased: savedUpgrade.purchased } : u;
+                    });
+                    const generators = INITIAL_GENERATORS.map(g => {
+                        const savedGenerator = parsed.generators?.find((sg: any) => sg.id === g.id);
+                        return savedGenerator ? { ...g, level: savedGenerator.level } : g;
+                    });
+
+                    const loadedState: GameState = {
+                        points: parsed.points || 0,
+                        gems: parsed.gems || 0,
+                        totalClicks: parsed.totalClicks || 0,
+                        generators: generators,
+                        upgrades: upgrades,
+                        clickLevel: parsed.clickLevel || 1,
+                        clickProgress: parsed.clickProgress || 0,
+                        unlockedAchievements: parsed.unlockedAchievements || {},
+                        prestigeLevel: parsed.prestigeLevel || 0,
+                    };
+                    setGameState(loadedState);
+                } else {
+                    setGameState(getInitialState());
+                }
+            } catch (error) {
+                console.error(`Failed to load saved game for ${playerName}, starting fresh:`, error);
+                setGameState(getInitialState());
+            }
+            setIsLoading(false);
+        } else {
+           setIsLoading(false);
+        }
+    }, [playerName]);
+
+    const saveGame = useCallback(() => {
+        if (!playerName) return;
+
+        if (saveTimeoutRef.current) {
+            clearTimeout(saveTimeoutRef.current);
+        }
+        setIsSaving(true);
+        
+        const currentGameState = gameStateRef.current;
+        
+        // Save individual progress to player-specific key
+        localStorage.setItem(`emojiClickerSaga_${playerName}`, JSON.stringify(currentGameState));
+
+        // Update leaderboard data
+        try {
+            const leaderboardRaw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+            const leaderboard: LeaderboardData = leaderboardRaw ? JSON.parse(leaderboardRaw) : {};
+            
+            leaderboard[playerName] = {
+                points: currentGameState.points,
+                totalClicks: currentGameState.totalClicks,
+                gems: currentGameState.gems,
+            };
+
+            localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(leaderboard));
+        } catch (error) {
+            console.error("Failed to update leaderboard:", error);
+        }
+
+        saveTimeoutRef.current = window.setTimeout(() => {
+            setIsSaving(false);
+            saveTimeoutRef.current = null;
+        }, 1000); // Visual feedback duration for "Saved!"
+    }, [playerName]);
+
     // Auto-save logic
     useEffect(() => {
-        const saveGame = () => {
-            if (localStorage.getItem('emojiClickerPlayerName')) {
-                localStorage.setItem('emojiClickerSaga', JSON.stringify(gameStateRef.current));
-            }
-        };
-
         const autoSaveInterval = setInterval(saveGame, AUTO_SAVE_INTERVAL);
-        window.addEventListener('beforeunload', saveGame); // Save on exit
+        window.addEventListener('beforeunload', saveGame);
 
         return () => {
             clearInterval(autoSaveInterval);
             window.removeEventListener('beforeunload', saveGame);
+            saveGame(); // Final save on component unmount/player switch
         };
-    }, []);
+    }, [saveGame]);
 
     const handlePlayerNameSubmit = (name: string) => {
         const trimmedName = name.trim();
         if (trimmedName) {
-            setPlayerName(trimmedName);
             localStorage.setItem('emojiClickerPlayerName', trimmedName);
+            setPlayerName(trimmedName);
+            
+            try {
+                const leaderboardRaw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+                const leaderboard: LeaderboardData = leaderboardRaw ? JSON.parse(leaderboardRaw) : {};
+
+                if (!leaderboard[trimmedName]) {
+                    leaderboard[trimmedName] = { points: 0, totalClicks: 0, gems: 0 };
+                    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(leaderboard));
+                }
+            } catch (error) {
+                console.error("Failed to add player to leaderboard:", error);
+            }
         }
     };
 
@@ -146,49 +210,20 @@ const App = () => {
     // --- Leaderboard Logic ---
     const updateLeaderboard = useCallback(() => {
         if (!playerName) return;
-        const data = generateFakeLeaderboardData(
+        const data = generateLeaderboardData(
             playerName,
-            { points: gameState.points, totalClicks: gameState.totalClicks, gems: gameState.gems },
             leaderboardCategory
         );
         setLeaderboardData(data);
-    }, [playerName, gameState.points, gameState.totalClicks, gameState.gems, leaderboardCategory]);
+    }, [playerName, leaderboardCategory]);
 
-    // Full leaderboard refresh on category change
+    // Full leaderboard refresh on category change or tab activation
     useEffect(() => {
-        updateLeaderboard();
-    }, [leaderboardCategory, updateLeaderboard]);
-
-    // Live player score update for leaderboard (debounced)
-    useEffect(() => {
-        if (activeTab !== 'leaderboard' || !playerName) return;
-
-        if (leaderboardUpdateTimeoutRef.current) {
-            clearTimeout(leaderboardUpdateTimeoutRef.current);
+        if (activeTab === 'leaderboard') {
+            updateLeaderboard();
         }
+    }, [activeTab, leaderboardCategory, updateLeaderboard]);
 
-        leaderboardUpdateTimeoutRef.current = window.setTimeout(() => {
-            const newScore = gameState[leaderboardCategory];
-            // Only update if score is different to avoid re-render
-            setLeaderboardData(prevData => {
-                if (prevData.length > 0 && prevData[0].score === newScore) {
-                    return prevData;
-                }
-                return [{
-                    rank: 1,
-                    name: playerName,
-                    score: newScore,
-                    isPlayer: true,
-                }];
-            });
-        }, 500);
-
-        return () => {
-            if (leaderboardUpdateTimeoutRef.current) {
-                clearTimeout(leaderboardUpdateTimeoutRef.current);
-            }
-        }
-    }, [gameState.points, gameState.totalClicks, gameState.gems, leaderboardCategory, activeTab, playerName]);
 
     // --- Golden Emoji & Boost Logic ---
     useEffect(() => {
@@ -310,9 +345,12 @@ const App = () => {
             const newGenerators = prev.generators.map(g =>
                 g.id === generatorId ? { ...g, level: g.level + 1 } : g
             );
-            return { ...prev, points: prev.points - cost, generators: newGenerators };
+            const newState = { ...prev, points: prev.points - cost, generators: newGenerators };
+            gameStateRef.current = newState;
+            saveGame();
+            return newState;
         });
-    }, [isSoundOn]);
+    }, [isSoundOn, saveGame]);
 
     const handleBuyUpgrade = useCallback((upgradeId: string) => {
         setGameState(prev => {
@@ -322,55 +360,67 @@ const App = () => {
             const newUpgrades = prev.upgrades.map(u =>
                 u.id === upgradeId ? { ...u, purchased: true } : u
             );
-            return { ...prev, points: prev.points - upgrade.cost, upgrades: newUpgrades };
+            const newState = { ...prev, points: prev.points - upgrade.cost, upgrades: newUpgrades };
+            gameStateRef.current = newState;
+            saveGame();
+            return newState;
         });
-    }, [isSoundOn]);
+    }, [isSoundOn, saveGame]);
 
     const handleRebirth = useCallback(() => {
-        const currentRebirthCost = REBIRTH_COST + gameState.gems * POINTS_PER_GEM;
-        if (gameState.points < currentRebirthCost) return;
+        const currentRebirthCost = REBIRTH_COST + gameStateRef.current.gems * POINTS_PER_GEM;
+        if (gameStateRef.current.points < currentRebirthCost) return;
         if (window.confirm(t('rebirth_confirm'))) {
             if (isSoundOn) playRebirthSound();
             setIsRebirthing(true);
             setTimeout(() => {
-                 setGameState(prev => ({
-                    ...prev,
-                    points: 0,
-                    gems: prev.gems + 1,
-                    generators: INITIAL_GENERATORS.map(g => ({...g, level: 0})),
-                    upgrades: INITIAL_UPGRADES.map(u => ({...u, purchased: false})),
-                    clickLevel: 1,
-                    clickProgress: 0,
-                }));
+                 setGameState(prev => {
+                    const newState = {
+                        ...prev,
+                        points: 0,
+                        gems: prev.gems + 1,
+                        generators: INITIAL_GENERATORS.map(g => ({...g, level: 0})),
+                        upgrades: INITIAL_UPGRADES.map(u => ({...u, purchased: false})),
+                        clickLevel: 1,
+                        clickProgress: 0,
+                    };
+                    gameStateRef.current = newState;
+                    saveGame();
+                    return newState;
+                });
             }, 500);
             setTimeout(() => setIsRebirthing(false), 2500);
         }
-    }, [gameState.points, gameState.gems, isSoundOn, t]);
+    }, [isSoundOn, t, saveGame]);
     
     const handlePrestige = useCallback(() => {
-        const cost = PRESTIGE_COST_BASE + gameState.prestigeLevel * PRESTIGE_COST_SCALING;
-        if (gameState.gems < cost) return;
+        const cost = PRESTIGE_COST_BASE + gameStateRef.current.prestigeLevel * PRESTIGE_COST_SCALING;
+        if (gameStateRef.current.gems < cost) return;
         if (window.confirm(t('prestige_confirm'))) {
             if (isSoundOn) playRebirthSound();
             setIsRebirthing(true);
             setTimeout(() => {
-                 setGameState(prev => ({
-                    ...prev,
-                    points: 0,
-                    gems: 0,
-                    generators: INITIAL_GENERATORS.map(g => ({...g, level: 0})),
-                    upgrades: INITIAL_UPGRADES.map(u => ({...u, purchased: false})),
-                    clickLevel: 1,
-                    clickProgress: 0,
-                    prestigeLevel: prev.prestigeLevel + 1,
-                }));
+                 setGameState(prev => {
+                    const newState = {
+                        ...prev,
+                        points: 0,
+                        gems: 0,
+                        generators: INITIAL_GENERATORS.map(g => ({...g, level: 0})),
+                        upgrades: INITIAL_UPGRADES.map(u => ({...u, purchased: false})),
+                        clickLevel: 1,
+                        clickProgress: 0,
+                        prestigeLevel: prev.prestigeLevel + 1,
+                    };
+                    gameStateRef.current = newState;
+                    saveGame();
+                    return newState;
+                });
             }, 500);
             setTimeout(() => setIsRebirthing(false), 2500);
         }
-    }, [gameState.gems, gameState.prestigeLevel, isSoundOn, t]);
+    }, [isSoundOn, t, saveGame]);
 
     const handleCheat = useCallback(() => {
-        // Find all achievements that are not yet unlocked to show notifications for them.
         const newlyUnlocked = ACHIEVEMENTS.filter(
             ach => !gameStateRef.current.unlockedAchievements[ach.id]
         );
@@ -379,7 +429,6 @@ const App = () => {
             setAchievementToastQueue(prev => [...prev, ...newlyUnlocked]);
         }
 
-        // Create an object with all achievements marked as unlocked.
         const allUnlockedAchievements = ACHIEVEMENTS.reduce((acc, ach) => {
             acc[ach.id] = true;
             return acc;
@@ -400,13 +449,33 @@ const App = () => {
     }, []);
     
     const handleHardReset = useCallback(() => {
-        localStorage.removeItem('emojiClickerSaga');
         localStorage.removeItem('emojiClickerPlayerName');
+        localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('emojiClickerSaga_')) {
+                localStorage.removeItem(key);
+            }
+        });
         window.location.reload();
     }, []);
+    
+    const handleSwitchAccount = useCallback(() => {
+        saveGame();
+        setIsSettingsOpen(false);
+        setPlayerName(null);
+        localStorage.removeItem('emojiClickerPlayerName');
+    }, [saveGame]);
 
     const nextRebirthCost = REBIRTH_COST + gameState.gems * POINTS_PER_GEM;
     const currentToast = achievementToastQueue[0];
+
+    if (isLoading) {
+        return (
+            <div className="h-screen bg-gray-900 text-white flex items-center justify-center">
+                <p className="text-2xl animate-pulse">Loading Game...</p>
+            </div>
+        );
+    }
     
     const renderActiveView = () => {
         switch(activeTab) {
@@ -459,6 +528,7 @@ const App = () => {
                 pps={pointsPerSecond} 
                 gems={gameState.gems} 
                 boost={boost}
+                isSaving={isSaving}
                 onSettingsClick={() => setIsSettingsOpen(true)}
             />
 
@@ -555,6 +625,7 @@ const App = () => {
                 onClose={() => setIsSettingsOpen(false)} 
                 onCheat={handleCheat}
                 onHardReset={handleHardReset}
+                onSwitchAccount={handleSwitchAccount}
                 playerName={playerName}
             />
         </div>
